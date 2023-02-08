@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  start-instance
+
+  Sample SAM Template for start-instance
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  InstanceStopper:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      Tags:
+        Owner: "Kuba"
+        Usecase: "infra"
+        ManagedBy: "SAM"
+      CodeUri: instance_stopper_function
+      Handler: instance_stopper/app.lambda_handler
+      Runtime: python3.9
+      Role: !GetAtt InstanceStopperRole.Arn
+      Architectures:
+        - arm64
+      Events:
+        ChangeStateEvent:
+          Type: CloudWatchEvent # More info about CloudWatchEvent Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#cloudwatchevent
+          Properties:
+            Pattern:
+              source:
+                - aws.ec2
+              detail-type:
+                - EC2 Instance State-change Notification
+              detail:
+                state:
+                  - running
+  InstanceStopperRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Tags:
+        - Key: Owner
+          Value: kuba
+        - Key: Usecase
+          Value: Infra
+        - Key: ManagedBy
+          Value: SAM
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: StopTheInstance
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: Allow
+                Action:
+                  - "ec2:DescribeInstances"
+                  - "ec2:DescribeVolumes"
+                  - "ec2:StartInstances"
+                  - "ec2:StopInstances"
+                  - "ec2:TerminateInstances"
+                Resource: "*"
+
+Outputs:
+  InstanceStopperFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt InstanceStopper.Arn
+  InstanceStopperRoleIamRole:
+    Description: "Implicit IAM Role created for Instance Stopper function"
+    Value: !GetAtt InstanceStopperRole.Arn
